@@ -10,6 +10,7 @@ use std::{
 
 use crate::{db::DB, error::Result, parse_args::Config};
 use walkdir::WalkDir;
+static BOOK_FORMATS:[&str;5]=["mobi","txt","epub","azw3","pdf"];
 #[derive(Debug)]
 pub struct HDDBook {
     pub fname: String,
@@ -49,14 +50,16 @@ impl Book {
     fn delete_books<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         if path.as_ref().exists() {
             // query records
-            if self.db.count()?.is_some()  {
+            if let Some(c)=self.db.count()?  {
+                println!("found records {} in db ",c);
                 let sql = "delete from books";
                 self.db.conn.execute(sql, [])?;
             }
         }
         Ok(())
     }
-    ///return book info format  [`HDDBook`] (fname,path,usn) (usn:base usn starts from 1)
+    ///walk hdd path and 
+    /// return book info format  [`HDDBook`] (fname,path,usn) (usn:base usn starts from 1)
     ///
     /// It is the paths or dir (in hdd) which is going to be walked .
     fn get_hdd_books(&self, path: PathBuf) -> Result<Vec<HDDBook>> {
@@ -64,7 +67,12 @@ impl Book {
         let mut usn = 0;
         for entry in WalkDir::new(path) {
             let entry = entry?.path().to_owned();
-            if entry.is_file() {
+            // get file extension,add custome ext if None
+            let extension=match entry.extension() {
+                Some(e)=>e.to_str().unwrap(),
+                None=>"empty"
+            };
+            if entry.is_file() && BOOK_FORMATS.contains(&extension){
                 usn += 1;
                 let fname = entry.file_name().unwrap().to_str().unwrap();
                 let hddbook = HDDBook::new(fname.to_owned(), entry.clone(), usn);
@@ -73,7 +81,10 @@ impl Book {
         }
         Ok(books)
     }
-
+    /// walk hdd directorys
+    ///
+    /// insert info to db
+    /// 
     /// to be written info format [`HDDBook`] (fname,path,usn) (usn:base usn starts from 1)
     fn write_book_info(&self, paths: Vec<PathBuf>) -> Result<()> {
         for p in paths {
@@ -84,11 +95,14 @@ impl Book {
         Ok(())
     }
     /// logic procedures about regreshing operation
+    /// 
+    /// only filter files with book format extention,e.g. .mobi,.epub
     fn regresh(&self) -> Result<()> {
         let instant = Instant::now();
         let path = self.config.location.clone();
         self.delete_books(path)?;
-        // need its path in hdd and filename
+        println!("delete books done");
+        // paths to be walked in HDD
         let paths = self
             .config
             .refresh
@@ -99,7 +113,7 @@ impl Book {
             .collect::<_>();
         self.write_book_info(paths)?;
         let elapse = instant.elapsed().as_secs();
-        println!("elapsed time in refreshing  {}", elapse);
+        println!("elapsed time in refreshing hdd {}", elapse);
         Ok(())
     }
     /// print results queried form db.
