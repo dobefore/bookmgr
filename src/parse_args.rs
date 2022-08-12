@@ -5,18 +5,18 @@ write new info to db)
 
 need a required argument dbpath
 */
-use clap::Parser;
+use clap::{Args, Parser};
 /// config read from command-line is used in struct Book
 #[derive(Parser, Debug)]
 #[clap( version, about, long_about = None)]
 pub struct Config {
     /// db path/location
-    #[clap(short, long, value_parser)]
-    pub location: String,
+    #[clap(flatten)]
+    pub location: Loc,
+    /// allow for one wrod or mulpti words. e.g. -q we ; -q "we are"
     #[clap(short, long, value_parser)]
     pub query_words: Option<String>,
-    /// refreesh database by removing existing db and creating new one and writing new info to it
-    /// e.g. -r C D
+    /// refreesh/update database e.g. -r C: D:
     #[clap(
         short,
         long,
@@ -31,4 +31,17 @@ pub struct Config {
     /// copy a book by an index to a PC storage
     #[clap(short, long,number_of_values(2),multiple_values(true),value_names(&["index", "pclocation"]))]
     pub copy: Option<Vec<String>>,
+    /// erase all data form db
+    #[clap(short, long, action)]
+    pub erase: bool,
+}
+#[derive(Args, Debug, Clone)]
+pub struct Loc {
+    dblocation: String,
+}
+
+impl Loc {
+    pub fn dblocation(&self) -> &str {
+        self.dblocation.as_ref()
+    }
 }
